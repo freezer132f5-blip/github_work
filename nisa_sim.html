@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>積立NISAシミュレーター</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a56db 0%, #0e9f6e 100%);
+      color: #fff;
+      padding: 28px 24px 24px;
+      text-align: center;
+    }
+    header h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: .04em; }
+    header p  { font-size: .9rem; opacity: .85; margin-top: 4px; }
+
+    .container { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-size: 1rem; font-weight: 700; color: #1a56db;
+      margin-bottom: 20px; padding-bottom: 8px;
+      border-bottom: 2px solid #e8f0fe;
+    }
+
+    .base-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 500px) { .base-grid { grid-template-columns: 1fr; } }
+
+    .field label {
+      display: block; font-size: .8rem; font-weight: 600;
+      color: #4a5568; margin-bottom: 6px;
+    }
+    .field .hint { font-size: .72rem; color: #a0aec0; margin-top: 4px; }
+
+    .input-wrap {
+      display: flex; align-items: center;
+      border: 1.5px solid #cbd5e0; border-radius: 8px;
+      overflow: hidden; transition: border-color .2s;
+    }
+    .input-wrap:focus-within { border-color: #1a56db; }
+    .input-wrap input {
+      border: none; outline: none; padding: 9px 10px;
+      font-size: .95rem; background: transparent;
+      width: 100%; min-width: 0; color: #1a202c;
+    }
+    .input-wrap .unit {
+      padding: 9px 10px 9px 4px; font-size: .85rem;
+      color: #718096; white-space: nowrap;
+    }
+
+    /* ── 入力テーブル ── */
+    .period-table {
+      width: 100%; border-collapse: separate; border-spacing: 0 10px;
+    }
+    .period-table th {
+      font-size: .78rem; font-weight: 600; color: #718096;
+      padding: 0 8px 4px; text-align: center;
+    }
+    .period-table td { padding: 0 6px; vertical-align: middle; }
+    .period-table td.label-cell { width: 80px; text-align: center; }
+
+    .period-badge {
+      display: inline-block; padding: 4px 10px; border-radius: 20px;
+      font-size: .8rem; font-weight: 700; color: #fff;
+    }
+    .period-badge.p1 { background: #4299e1; }
+    .period-badge.p2 { background: #0e9f6e; }
+    .period-badge.p3 { background: #9f7aea; }
+    .period-badge.dd { background: #e53e3e; }
+
+    .age-cell { display: flex; align-items: center; gap: 4px; }
+    .age-cell .input-wrap { width: 90px; flex-shrink: 0; }
+
+    .tilde { text-align: center; font-size: 1.1rem; color: #a0aec0; width: 20px; }
+    .arrow { text-align: center; font-size: 1rem; color: #a0aec0; }
+    .amount-cell .input-wrap { min-width: 140px; }
+
+    .draw-divider td {
+      padding: 8px 6px 2px; font-size: .78rem; font-weight: 600;
+      color: #e53e3e; border-top: 2px dashed #fed7d7;
+    }
+    .dd-start-label {
+      font-size: .82rem; color: #718096; white-space: nowrap; padding: 0 4px;
+    }
+
+    @media (max-width: 680px) {
+      .period-table, .period-table tbody, .period-table tr, .period-table td { display: block; }
+      .period-table thead { display: none; }
+      .period-table tr { background: #f7fafc; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+      .period-table td { padding: 4px 0; }
+      .age-cell { flex-wrap: wrap; }
+    }
+
+    .btn {
+      display: block; width: 100%; margin-top: 24px; padding: 13px;
+      background: linear-gradient(135deg, #1a56db, #0e9f6e);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      letter-spacing: .05em; transition: opacity .2s, transform .1s;
+    }
+    .btn:hover  { opacity: .9; }
+    .btn:active { transform: scale(.99); }
+
+    .error-msg { color: #e53e3e; font-size: .85rem; margin-top: 8px; display: none; }
+
+    /* ── サマリー ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 14px; margin-bottom: 24px;
+    }
+    .summary-item {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 16px 18px; text-align: center;
+    }
+    .s-label { font-size: .75rem; color: #718096; margin-bottom: 5px; }
+    .s-value { font-size: 1.2rem; font-weight: 700; }
+    .summary-item.invested  .s-value { color: #1a56db; }
+    .summary-item.total     .s-value { color: #0e9f6e; }
+    .summary-item.profit    .s-value { color: #e53e3e; }
+    .summary-item.draw-ok   .s-value { color: #0e9f6e; font-size: 1rem; }
+    .summary-item.draw-ng   .s-value { color: #e53e3e; font-size: 1rem; }
+
+    /* ── グラフ ── */
+    .chart-wrap { position: relative; height: 300px; }
+    .chart-legend {
+      display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+      font-size: .8rem; color: #4a5568; margin: 10px 0 4px;
+    }
+    .chart-legend span::before { content: "■"; margin-right: 4px; }
+    .leg-principal::before { color: #bee3f8; }
+    .leg-p1::before   { color: #4299e1; }
+    .leg-p2::before   { color: #0e9f6e; }
+    .leg-p3::before   { color: #9f7aea; }
+    .leg-profit::before { color: #f6ad55; }
+    .leg-draw::before  { color: #fc8181; }
+
+    /* ── テーブル ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+    thead tr { background: #ebf4ff; }
+    th {
+      padding: 10px 12px; text-align: right;
+      font-weight: 600; color: #2b6cb0; white-space: nowrap;
+    }
+    th:first-child, th:nth-child(2) { text-align: center; }
+    td {
+      padding: 8px 12px; text-align: right;
+      border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+    }
+    td:first-child { text-align: center; color: #718096; font-size: .82rem; }
+    td:nth-child(2) { text-align: center; }
+    tbody tr:hover { background: #f7fafc; }
+    .profit-cell   { color: #0e9f6e; font-weight: 600; }
+    .loss-cell     { color: #e53e3e; font-weight: 600; }
+    .withdraw-cell { color: #e53e3e; }
+
+    .period-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 4px; vertical-align: middle;
+    }
+    .dot-p1   { background: #4299e1; }
+    .dot-p2   { background: #0e9f6e; }
+    .dot-p3   { background: #9f7aea; }
+    .dot-draw { background: #e53e3e; }
+    .dot-none { background: #cbd5e0; }
+
+    tr.draw-row { background: #fff5f5; }
+    tr.draw-row:hover { background: #fed7d7; }
+    tr.draw-section-header td {
+      background: #fff5f5; color: #c53030; font-weight: 700;
+      font-size: .8rem; text-align: center; padding: 6px 12px;
+      border-top: 2px solid #fed7d7;
+    }
+    tr.depleted-row td {
+      background: #e53e3e; color: #fff; font-weight: 700; text-align: center;
+    }
+
+    /* ── シナリオ比較 ── */
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 12px;
+    }
+    .sc-item {
+      border: 1.5px solid #e2e8f0; border-radius: 10px;
+      padding: 14px 12px; text-align: center;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .sc-item.active { border-color: #0e9f6e; box-shadow: 0 0 0 3px rgba(14,159,110,.15); }
+    .sc-rate   { font-size: 1.05rem; font-weight: 700; color: #1a56db; }
+    .sc-value  { font-size: .85rem; font-weight: 600; color: #0e9f6e; margin-top: 4px; }
+    .sc-profit { font-size: .76rem; color: #718096; margin-top: 2px; }
+    .sc-draw   { font-size: .76rem; margin-top: 4px; font-weight: 600; }
+    .sc-draw.ok { color: #0e9f6e; }
+    .sc-draw.ng { color: #e53e3e; }
+
+    #results { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>積立NISAシミュレーター</h1>
+  <p>3つの積立期間 ＋ 取崩期間（積立②終了後〜）を設定して生涯の資産運用をシミュレーション</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>シミュレーション条件</h2>
+
+    <div class="base-grid">
+      <div class="field">
+        <label>元金（初期投資額）</label>
+        <div class="input-wrap">
+          <input type="number" id="principal" value="0" min="0" step="10000">
+          <span class="unit">円</span>
+        </div>
+        <div class="hint">運用開始時の一括投資額（0円も可）</div>
+      </div>
+      <div class="field">
+        <label>想定年利</label>
+        <div class="input-wrap">
+          <input type="number" id="rate" value="5.0" min="0.1" max="30" step="0.1">
+          <span class="unit">%</span>
+        </div>
+        <div class="hint">世界株インデックス平均 5〜7%程度</div>
+      </div>
+    </div>
+
+    <table class="period-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th style="text-align:left">開始年齢</th>
+          <th></th>
+          <th style="text-align:left">終了年齢</th>
+          <th></th>
+          <th style="text-align:left">月額</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 積立① -->
+        <tr>
+          <td class="label-cell"><span class="period-badge p1">積立①</span></td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="p1-sy" value="64" min="0" max="99"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="p1-sm" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="tilde">〜</td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="p1-ey" value="65" min="0" max="99"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="p1-em" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="arrow">→</td>
+          <td class="amount-cell">
+            <div class="input-wrap"><input type="number" id="p1-amt" value="15000" min="0" step="1000"><span class="unit">円/月</span></div>
+          </td>
+        </tr>
+        <!-- 積立② -->
+        <tr>
+          <td class="label-cell"><span class="period-badge p2">積立②</span></td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="p2-sy" value="65" min="0" max="99"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="p2-sm" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="tilde">〜</td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="p2-ey" value="70" min="0" max="99"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="p2-em" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="arrow">→</td>
+          <td class="amount-cell">
+            <div class="input-wrap"><input type="number" id="p2-amt" value="100000" min="0" step="1000"><span class="unit">円/月</span></div>
+          </td>
+        </tr>
+        <!-- 積立③ -->
+        <tr>
+          <td class="label-cell"><span class="period-badge p3">積立③</span></td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="p3-sy" value="70" min="0" max="99"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="p3-sm" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="tilde">〜</td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="p3-ey" value="85" min="0" max="99"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="p3-em" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="arrow">→</td>
+          <td class="amount-cell">
+            <div class="input-wrap"><input type="number" id="p3-amt" value="5000" min="0" step="1000"><span class="unit">円/月</span></div>
+          </td>
+        </tr>
+        <!-- 区切り -->
+        <tr class="draw-divider">
+          <td colspan="6">▼ 取崩フェーズ（積立②終了後〜）　※積立③と同時進行</td>
+        </tr>
+        <!-- 取崩 -->
+        <tr>
+          <td class="label-cell"><span class="period-badge dd">取崩</span></td>
+          <td><span class="dd-start-label">積立②終了後</span></td>
+          <td class="tilde">〜</td>
+          <td>
+            <div class="age-cell">
+              <div class="input-wrap"><input type="number" id="dd-ey" value="90" min="1" max="120"><span class="unit">歳</span></div>
+              <div class="input-wrap"><input type="number" id="dd-em" value="0" min="0" max="11"><span class="unit">ヶ月</span></div>
+            </div>
+          </td>
+          <td class="arrow">→</td>
+          <td class="amount-cell">
+            <div class="input-wrap"><input type="number" id="dd-amt" value="150000" min="0" step="1000"><span class="unit">円/月</span></div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="error-msg" id="err-msg"></div>
+    <button class="btn" onclick="runSim()">シミュレーション実行</button>
+  </div>
+
+  <!-- 結果 -->
+  <div id="results">
+    <div class="summary-grid" id="summary"></div>
+
+    <div class="card">
+      <h2>資産推移グラフ</h2>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+      <div class="chart-legend">
+        <span class="leg-principal">元金</span>
+        <span class="leg-p1">積立①</span>
+        <span class="leg-p2">積立②</span>
+        <span class="leg-p3">積立③</span>
+        <span class="leg-profit">運用益</span>
+        <span class="leg-draw">取崩後残高</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>年別シミュレーション結果</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>年齢</th>
+              <th>フェーズ</th>
+              <th>月積立</th>
+              <th>月取崩</th>
+              <th>累計積立</th>
+              <th>資産残高</th>
+              <th>運用益</th>
+              <th>利益率</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>年利別シナリオ比較</h2>
+      <div class="scenario-grid" id="scenario"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function fmt(n)    { return Math.round(n).toLocaleString('ja-JP') + '円'; }
+function fmtNum(n) { return Math.round(n).toLocaleString('ja-JP'); }
+
+// 取崩トリガー = periods[1].endM（積立②終了）
+function simulate(principal, periods, drawdown, annualRate) {
+  const r        = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
+  const ddStartM = periods[1].endM; // 積立②終了後から取崩開始
+
+  const overallStart = Math.min(...periods.map(p => p.startM));
+  const overallEnd   = Math.max(
+    ...periods.map(p => p.endM),
+    drawdown ? drawdown.endM : 0
+  );
+
+  const rows = [];
+  let value = principal, totalInvested = 0, totalWithdrawn = 0;
+  const periodInvested = [0, 0, 0];
+  let depletedAgeY = null, peakValue = principal;
+
+  for (let m = 0; m < overallEnd - overallStart; m++) {
+    const absM = overallStart + m;
+
+    // 積立
+    let monthly = 0, pidx = -1;
+    for (let i = 0; i < periods.length; i++) {
+      if (absM >= periods[i].startM && absM < periods[i].endM) {
+        monthly = periods[i].monthly; pidx = i; break;
+      }
+    }
+    totalInvested += monthly;
+    if (pidx >= 0) periodInvested[pidx] += monthly;
+
+    // 取崩
+    const inDD       = drawdown && absM >= ddStartM && absM < drawdown.endM;
+    const withdrawal = (inDD && value > 0) ? drawdown.monthly : 0;
+
+    // 月次計算: (残高 + 積立) × (1 + r) − 取崩
+    value = (value + monthly) * (1 + r) - withdrawal;
+
+    if (value < 0) {
+      if (!depletedAgeY) depletedAgeY = Math.floor((overallStart + m + 1) / 12);
+      totalWithdrawn += withdrawal + value; // 実際に取り崩せた分
+      value = 0;
+    } else {
+      totalWithdrawn += withdrawal;
+    }
+
+    if (value > peakValue) peakValue = value;
+
+    // 年末記録
+    if ((m + 1) % 12 === 0) {
+      const ageY      = Math.floor((overallStart + m + 1) / 12);
+      const inDDYear  = drawdown && (overallStart + m + 1) > ddStartM && (overallStart + m + 1) <= drawdown.endM;
+      const totalBase = principal + totalInvested;
+      const profit    = value - totalBase + totalWithdrawn;
+      const profitRate = totalBase > 0 ? ((value - totalBase) / totalBase) * 100 : 0;
+
+      let curPeriod = -1, curMonthly = 0;
+      const ageEndM = overallStart + m + 1;
+      for (let i = 0; i < periods.length; i++) {
+        if (ageEndM > periods[i].startM && ageEndM <= periods[i].endM) {
+          curPeriod = i; curMonthly = periods[i].monthly; break;
+        }
+      }
+
+      rows.push({
+        ageY, inDD: inDDYear,
+        curPeriod, curMonthly,
+        withdrawal: inDDYear ? drawdown.monthly : 0,
+        totalInvested, periodInvested: [...periodInvested],
+        totalBase, value, profit, profitRate,
+        totalWithdrawn, depleted: value === 0
+      });
+    }
+  }
+
+  return { rows, depletedAgeY, overallStart, ddStartM, peakValue };
+}
+
+function runSim() {
+  const err = document.getElementById('err-msg');
+  err.style.display = 'none';
+
+  const principal = parseFloat(document.getElementById('principal').value) || 0;
+  const rate      = parseFloat(document.getElementById('rate').value) || 0;
+  const getI = id => parseInt(document.getElementById(id).value)   || 0;
+  const getF = id => parseFloat(document.getElementById(id).value) || 0;
+
+  const periods = [
+    { startM: getI('p1-sy')*12+getI('p1-sm'), endM: getI('p1-ey')*12+getI('p1-em'), monthly: getF('p1-amt') },
+    { startM: getI('p2-sy')*12+getI('p2-sm'), endM: getI('p2-ey')*12+getI('p2-em'), monthly: getF('p2-amt') },
+    { startM: getI('p3-sy')*12+getI('p3-sm'), endM: getI('p3-ey')*12+getI('p3-em'), monthly: getF('p3-amt') },
+  ];
+  const drawdown = { endM: getI('dd-ey')*12+getI('dd-em'), monthly: getF('dd-amt') };
+  const ddStart  = periods[1].endM;
+
+  // バリデーション
+  for (let i = 0; i < periods.length; i++) {
+    if (periods[i].endM <= periods[i].startM) {
+      err.textContent = `積立${'①②③'[i]}：終了年齢は開始年齢より後にしてください。`;
+      err.style.display = 'block'; return;
+    }
+  }
+  for (let i = 0; i < periods.length - 1; i++) {
+    for (let j = i + 1; j < periods.length; j++) {
+      if (periods[i].startM < periods[j].endM && periods[j].startM < periods[i].endM) {
+        err.textContent = `積立${'①②③'[i]}と${'①②③'[j]}の期間が重複しています。`;
+        err.style.display = 'block'; return;
+      }
+    }
+  }
+  if (drawdown.endM <= ddStart) {
+    err.textContent = '取崩終了年齢は積立②終了年齢より後にしてください。';
+    err.style.display = 'block'; return;
+  }
+  if (rate <= 0 || rate > 30) {
+    err.textContent = '年利は 0.1〜30% の範囲で入力してください。';
+    err.style.display = 'block'; return;
+  }
+
+  const { rows, depletedAgeY, overallStart, ddStartM, peakValue } = simulate(principal, periods, drawdown, rate);
+
+  if (rows.length === 0) {
+    err.textContent = '期間が合計1年未満です。'; err.style.display = 'block'; return;
+  }
+
+  // 積立完了時点（積立③終了）を探す
+  const accumEndAge = Math.floor(Math.max(...periods.map(p => p.endM)) / 12);
+  const accumFinalRow = [...rows].reverse().find(r => r.ageY <= accumEndAge && !r.inDD) || rows[rows.length - 1];
+  const finalRow = rows[rows.length - 1];
+
+  // ── サマリー ──
+  let drawStatus, drawClass;
+  if (depletedAgeY) {
+    drawStatus = `${depletedAgeY}歳で資産枯渇`;
+    drawClass  = 'draw-ng';
+  } else {
+    const lastDD = [...rows].reverse().find(r => r.inDD);
+    drawStatus  = lastDD ? `${lastDD.ageY}歳時点 残高 ${fmt(lastDD.value)}` : '—';
+    drawClass   = 'draw-ok';
+  }
+
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-item invested">
+      <div class="s-label">累計積立額</div>
+      <div class="s-value">${fmt(accumFinalRow.totalInvested)}</div>
+    </div>
+    <div class="summary-item total">
+      <div class="s-label">積立完了時資産</div>
+      <div class="s-value">${fmt(accumFinalRow.value)}</div>
+    </div>
+    <div class="summary-item profit">
+      <div class="s-label">積立完了時運用益</div>
+      <div class="s-value">+${fmt(accumFinalRow.value - accumFinalRow.totalBase)}</div>
+    </div>
+    <div class="summary-item ${drawClass}">
+      <div class="s-label">取崩シミュレーション</div>
+      <div class="s-value">${drawStatus}</div>
+    </div>
+  `;
+
+  // ── テーブル ──
+  const dotCls = ['dot-p1','dot-p2','dot-p3'];
+  const pLabel = ['①','②','③'];
+  let prevWasAccum = true;
+
+  document.getElementById('table-body').innerHTML = rows.map(r => {
+    let sectionHeader = '';
+    if (r.inDD && prevWasAccum) {
+      sectionHeader = `<tr class="draw-section-header"><td colspan="8">▼ 取崩フェーズ開始（月額 ${fmt(drawdown.monthly)} 取崩　積立③と同時進行）</td></tr>`;
+      prevWasAccum = false;
+    }
+
+    const pdot = r.curPeriod >= 0
+      ? `<span class="period-dot ${dotCls[r.curPeriod]}"></span>積立${pLabel[r.curPeriod]}`
+      : '—';
+    const invest = r.curMonthly > 0 ? fmtNum(r.curMonthly) + '円' : '—';
+    const withdr = r.inDD ? `<span class="withdraw-cell">−${fmtNum(r.withdrawal)}円</span>` : '—';
+    const profitCell = r.value - r.totalBase >= 0
+      ? `<td class="profit-cell">+${fmtNum(r.value - r.totalBase)}円</td>`
+      : `<td class="loss-cell">${fmtNum(r.value - r.totalBase)}円</td>`;
+    const rateCell = r.value - r.totalBase >= 0
+      ? `<td style="color:#0e9f6e">+${r.profitRate.toFixed(1)}%</td>`
+      : `<td style="color:#e53e3e">${r.profitRate.toFixed(1)}%</td>`;
+
+    let depletedRow = '';
+    if (r.depleted && r.inDD) {
+      depletedRow = `<tr class="depleted-row"><td colspan="8">⚠ ${r.ageY}歳：資産枯渇</td></tr>`;
+    }
+
+    return sectionHeader + `<tr class="${r.inDD ? 'draw-row' : ''}">
+      <td>${r.ageY}歳</td>
+      <td>${pdot}${r.inDD ? ' <span class="period-dot dot-draw"></span>取崩中' : ''}</td>
+      <td>${invest}</td>
+      <td>${withdr}</td>
+      <td>${fmtNum(r.totalInvested)}円</td>
+      <td><strong>${fmtNum(r.value)}円</strong></td>
+      ${profitCell}
+      ${rateCell}
+    </tr>` + depletedRow;
+  }).join('');
+
+  // ── シナリオ比較 ──
+  document.getElementById('scenario').innerHTML = [1, 3, 5, 7, 10].map(s => {
+    const { rows: sr, depletedAgeY: dAge } = simulate(principal, periods, drawdown, s);
+    const af = [...sr].reverse().find(r => r.ageY <= accumEndAge && !r.inDD) || sr[sr.length-1];
+    const lastDD = [...sr].reverse().find(r => r.inDD);
+    const active = Math.abs(s - rate) < 0.05;
+    let drawInfo, drawCls;
+    if (dAge) { drawInfo = `${dAge}歳で枯渇`; drawCls = 'ng'; }
+    else if (lastDD) { drawInfo = `${lastDD.ageY}歳残 ${fmt(lastDD.value)}`; drawCls = 'ok'; }
+    else { drawInfo = '—'; drawCls = 'ok'; }
+    return `<div class="sc-item ${active ? 'active' : ''}">
+      <div class="sc-rate">年利 ${s}%</div>
+      <div class="sc-value">${fmt(af.value)}</div>
+      <div class="sc-profit">積立完了 +${fmtNum(af.value - af.totalBase)}円</div>
+      <div class="sc-draw ${drawCls}">${drawInfo}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  requestAnimationFrame(() => drawChart(rows, principal, periods, drawdown, overallStart, ddStartM, peakValue));
+}
+
+function drawChart(rows, principal, periods, drawdown, overallStart, ddStartM, peakValue) {
+  const canvas = document.getElementById('chart');
+  const ctx    = canvas.getContext('2d');
+  const dpr    = window.devicePixelRatio || 1;
+  const W      = canvas.parentElement.clientWidth || 800;
+  const H      = 300;
+
+  canvas.width  = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 76, padR = 20, padT = 16, padB = 40;
+  const cW = W - padL - padR, cH = H - padT - padB;
+  const bottom = padT + cH;
+  const maxVal = peakValue || 1;
+
+  // 目盛り
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + cH - (i / 4) * cH;
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + cW, y); ctx.stroke();
+    ctx.fillStyle = '#a0aec0'; ctx.textAlign = 'right'; ctx.font = '11px sans-serif';
+    ctx.fillText(fmtNum(Math.round(maxVal * i / 4 / 10000)) + '万', padL - 4, y + 4);
+  }
+
+  const barW = Math.max(3, (cW / rows.length) * 0.72);
+  const gap  = cW / rows.length;
+  const COLORS = { p: ['#4299e1','#0e9f6e','#9f7aea'], profit: '#f6ad55', principal: '#bee3f8', draw: '#fc8181' };
+
+  rows.forEach((r, i) => {
+    const x = padL + i * gap + (gap - barW) / 2;
+    const hTotal = (r.value / maxVal) * cH;
+
+    if (r.inDD && r.curPeriod < 0) {
+      // 取崩のみの期間: 残高をコーラルバーで表示
+      if (r.value > 0) {
+        ctx.fillStyle = COLORS.draw;
+        ctx.fillRect(x, bottom - hTotal, barW, hTotal);
+      }
+    } else {
+      // 積立あり（取崩同時進行も含む）: 積み上げバー
+      const hBase      = (r.totalBase / maxVal) * cH;
+      const hPrincipal = (principal / maxVal) * cH;
+      const hProfit    = hTotal - hBase;
+
+      // 元金
+      if (hPrincipal > 0) {
+        ctx.fillStyle = COLORS.principal;
+        ctx.fillRect(x, bottom - hPrincipal, barW, hPrincipal);
+      }
+      // 各積立
+      let stackH = hPrincipal;
+      for (let pi = 0; pi < 3; pi++) {
+        const h = (r.periodInvested[pi] / maxVal) * cH;
+        if (h > 0) {
+          ctx.fillStyle = COLORS.p[pi];
+          ctx.fillRect(x, bottom - stackH - h, barW, h);
+          stackH += h;
+        }
+      }
+      // 運用益（正）または取崩後の残余
+      if (hProfit > 0) {
+        ctx.fillStyle = r.inDD ? COLORS.draw : COLORS.profit;
+        ctx.fillRect(x, bottom - hTotal, barW, hProfit);
+      }
+    }
+
+    // X軸ラベル（5歳ごと）
+    if (r.ageY % 5 === 0) {
+      ctx.fillStyle = '#718096'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(r.ageY + '歳', x + barW / 2, bottom + 16);
+    }
+  });
+
+  // 取崩開始ライン（積立②終了後）
+  const ddIdx  = rows.findIndex(r => r.inDD);
+  if (ddIdx > 0) {
+    const xDD = padL + ddIdx * gap;
+    ctx.strokeStyle = '#e53e3e'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(xDD, padT); ctx.lineTo(xDD, bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#e53e3e'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('取崩開始', xDD + 3, padT + 12);
+  }
+
+  // 軸
+  ctx.strokeStyle = '#cbd5e0'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, bottom); ctx.lineTo(padL + cW, bottom); ctx.stroke();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') runSim(); });
+</script>
+</body>
+</html>
